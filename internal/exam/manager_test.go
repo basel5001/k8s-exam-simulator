@@ -1,6 +1,7 @@
 package exam
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -129,7 +130,7 @@ func TestLoadSessionNoFile(t *testing.T) {
 
 func TestStartExamInvalidType(t *testing.T) {
 	m := setupTestManager(t)
-	_, err := m.StartExam(nil, "invalid", false)
+	_, err := m.StartExam(context.Background(), "invalid", false)
 	if err == nil {
 		t.Error("expected error for invalid exam type")
 	}
