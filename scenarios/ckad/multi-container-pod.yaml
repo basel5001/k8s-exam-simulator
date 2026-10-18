@@ -1,0 +1,53 @@
+name: "multi-container-pod"
+exam: ckad
+weight: 7
+difficulty: medium
+duration: 10
+domains:
+  - "Application Design and Build"
+description: |
+  Create a pod named `web-with-sidecar` in namespace `apps`.
+  The main container should run nginx, and a sidecar container should continuously write timestamps
+  to a shared volume mounted at `/var/log/shared/app.log`.
+context: |
+  Cluster: kind-ckad-exam
+  Namespace: apps
+setup: |
+  kubectl create namespace apps --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete pod web-with-sidecar -n apps --ignore-not-found
+hints:
+  - "Use an `emptyDir` volume shared by both containers."
+  - "The sidecar can use a small shell loop with `date`."
+  - "Mount the shared volume at different paths if convenient."
+validation: |
+  set -euo pipefail
+  echo "Checking container count..."
+  kubectl get pod web-with-sidecar -n apps -o json | jq -e '.spec.containers | length == 2' >/dev/null
+  echo "PASS: pod has two containers"
+  echo "Checking shared volume..."
+  kubectl get pod web-with-sidecar -n apps -o json | jq -e '.spec.volumes[] | has("emptyDir")' >/dev/null
+  echo "PASS: pod uses emptyDir volume"
+solution: |
+  cat <<EOF_YAML | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: web-with-sidecar
+    namespace: apps
+  spec:
+    volumes:
+      - name: shared-logs
+        emptyDir: {}
+    containers:
+      - name: web
+        image: nginx
+        volumeMounts:
+          - name: shared-logs
+            mountPath: /usr/share/nginx/html/logs
+      - name: log-writer
+        image: busybox:1.36
+        command: ["/bin/sh", "-c", "while true; do date >> /var/log/shared/app.log; sleep 5; done"]
+        volumeMounts:
+          - name: shared-logs
+            mountPath: /var/log/shared
+  EOF_YAML

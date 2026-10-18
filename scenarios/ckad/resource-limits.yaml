@@ -1,0 +1,56 @@
+name: "resource-limits"
+exam: ckad
+weight: 6
+difficulty: medium
+duration: 8
+domains:
+  - "Application Environment, Configuration and Security"
+description: |
+  Create a LimitRange in namespace `apps` that defaults containers to 100m CPU / 128Mi memory requests
+  and 200m CPU / 256Mi memory limits. Then deploy a pod named `limited-app` that inherits those defaults.
+context: |
+  Cluster: kind-ckad-exam
+  Namespace: apps
+setup: |
+  kubectl create namespace apps --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete pod limited-app -n apps --ignore-not-found
+  kubectl delete limitrange default-limits -n apps --ignore-not-found
+hints:
+  - "LimitRange defaults are set under `default` and `defaultRequest`."
+  - "The pod should omit explicit resources to inherit them."
+  - "Check the effective resources with `kubectl get pod -o yaml`."
+validation: |
+  set -euo pipefail
+  echo "Checking LimitRange defaults..."
+  kubectl get limitrange default-limits -n apps -o json | jq -e '.spec.limits[] | select(.type == "Container") | .default.cpu == "200m" and .default.memory == "256Mi" and .defaultRequest.cpu == "100m" and .defaultRequest.memory == "128Mi"' >/dev/null
+  echo "PASS: LimitRange exists"
+  echo "Checking pod effective resources..."
+  kubectl get pod limited-app -n apps -o json | jq -e '.spec.containers[0].resources.requests.cpu == "100m" and .spec.containers[0].resources.limits.memory == "256Mi"' >/dev/null
+  echo "PASS: pod inherited resource defaults"
+solution: |
+  cat <<EOF_YAML | kubectl apply -f -
+  apiVersion: v1
+  kind: LimitRange
+  metadata:
+    name: default-limits
+    namespace: apps
+  spec:
+    limits:
+      - type: Container
+        default:
+          cpu: 200m
+          memory: 256Mi
+        defaultRequest:
+          cpu: 100m
+          memory: 128Mi
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: limited-app
+    namespace: apps
+  spec:
+    containers:
+      - name: app
+        image: nginx
+  EOF_YAML

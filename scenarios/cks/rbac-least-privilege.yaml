@@ -1,0 +1,36 @@
+name: "rbac-least-privilege"
+exam: cks
+weight: 7
+difficulty: medium
+duration: 10
+domains:
+  - "System Hardening"
+description: |
+  Create a service account named `auditor` in the `security` namespace.
+  Grant it read-only access to pods in that namespace and nothing else.
+context: |
+  Cluster: kind-cks-exam
+  Namespace: security
+setup: |
+  kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create serviceaccount auditor -n security --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete role pod-reader -n security --ignore-not-found
+  kubectl delete rolebinding auditor-pod-reader -n security --ignore-not-found
+hints:
+  - "Use a Role instead of a ClusterRole."
+  - "The verbs should be only what is needed to read pod information."
+  - "Bind the Role to the `auditor` service account in the same namespace."
+validation: |
+  set -euo pipefail
+  echo "Checking service account exists..."
+  kubectl get sa auditor -n security >/dev/null
+  echo "PASS: service account exists"
+  echo "Checking Role rules..."
+  kubectl get role pod-reader -n security -o json | jq -e '.rules[] | select(.resources[] == "pods") | select((.verbs | sort) == ["get","list","watch"])' >/dev/null
+  echo "PASS: least-privilege Role exists"
+  echo "Checking RoleBinding..."
+  kubectl get rolebinding auditor-pod-reader -n security -o json | jq -e '.subjects[] | select(.kind == "ServiceAccount" and .name == "auditor" and .namespace == "security")' >/dev/null
+  echo "PASS: RoleBinding targets auditor service account"
+solution: |
+  kubectl create role pod-reader -n security --verb=get,list,watch --resource=pods --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create rolebinding auditor-pod-reader -n security --role=pod-reader --serviceaccount=security:auditor --dry-run=client -o yaml | kubectl apply -f -

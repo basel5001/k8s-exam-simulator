@@ -1,0 +1,40 @@
+name: "audit-logging"
+exam: cks
+weight: 8
+difficulty: hard
+duration: 12
+domains:
+  - "System Hardening"
+description: |
+  Configure an audit policy file at `/etc/kubernetes/audit-policy.yaml` on the control-plane node.
+  The policy must log `get`, `list`, and `watch` requests to Secrets at the `Metadata` level.
+context: |
+  Cluster: kind-cks-exam
+  Node: control-plane
+setup: |
+  echo "Audit logging scenario requires editing files on the kind control-plane node."
+  kubectl get nodes >/dev/null
+hints:
+  - "Use `docker exec` into the kind control-plane container."
+  - "An audit policy needs `apiVersion`, `kind`, and `rules`."
+  - "Set `resources.resources` to `secrets` and `level` to `Metadata`."
+validation: |
+  set -euo pipefail
+  echo "Checking audit policy file exists..."
+  docker exec ${KIND_CLUSTER_NAME}-control-plane test -f /etc/kubernetes/audit-policy.yaml
+  echo "PASS: audit policy file exists"
+  echo "Checking secret audit rules..."
+  docker exec ${KIND_CLUSTER_NAME}-control-plane sh -c "grep -q 'level: Metadata' /etc/kubernetes/audit-policy.yaml"
+  docker exec ${KIND_CLUSTER_NAME}-control-plane sh -c "grep -q 'secrets' /etc/kubernetes/audit-policy.yaml"
+  echo "PASS: audit policy includes secret metadata logging"
+solution: |
+  docker exec -i ${KIND_CLUSTER_NAME}-control-plane sh -c 'cat > /etc/kubernetes/audit-policy.yaml' <<'EOF_POLICY'
+  apiVersion: audit.k8s.io/v1
+  kind: Policy
+  rules:
+    - level: Metadata
+      verbs: ["get", "list", "watch"]
+      resources:
+        - group: ""
+          resources: ["secrets"]
+  EOF_POLICY

@@ -1,0 +1,69 @@
+name: "network-policy-deny-all"
+exam: cks
+weight: 7
+difficulty: medium
+duration: 10
+domains:
+  - "Cluster Hardening"
+description: |
+  A pod named `web-app` runs in the `production` namespace.
+  Create one NetworkPolicy that denies all ingress traffic to this pod,
+  then add a second policy that only allows traffic from pods labeled
+  `role=frontend` in the same namespace.
+context: |
+  Cluster: kind-cks-exam
+  Namespace: production
+setup: |
+  kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete pod web-app frontend backend -n production --ignore-not-found
+  kubectl run web-app --image=nginx --namespace=production --labels=app=web-app --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+  kubectl run frontend --image=nginx --namespace=production --labels=role=frontend --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+  kubectl run backend --image=nginx --namespace=production --labels=role=backend --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+  kubectl wait --for=condition=Ready pod/web-app -n production --timeout=120s
+  kubectl wait --for=condition=Ready pod/frontend -n production --timeout=120s
+  kubectl wait --for=condition=Ready pod/backend -n production --timeout=120s
+hints:
+  - "Use `policyTypes: [Ingress]` and an empty `ingress: []` list for deny-all."
+  - "The allow rule should target the same app=web-app pods."
+  - "Use a podSelector in `from` that matches `role=frontend`."
+validation: |
+  set -euo pipefail
+  echo "Checking deny-all ingress policy for web-app..."
+  kubectl get networkpolicy -n production -o json | jq -e '.items[] | select(.spec.podSelector.matchLabels.app == "web-app") | select(.spec.policyTypes[] == "Ingress") | select(.spec.ingress == [])' >/dev/null
+  echo "PASS: deny-all ingress policy exists"
+  echo "Checking allow-from-frontend policy..."
+  kubectl get networkpolicy -n production -o json | jq -e '.items[] | select(.spec.podSelector.matchLabels.app == "web-app") | .spec.ingress[]?.from[]?.podSelector.matchLabels.role == "frontend"' >/dev/null
+  echo "PASS: frontend allow policy exists"
+solution: |
+  cat <<EOF_POLICY | kubectl apply -f -
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: deny-all-ingress
+    namespace: production
+  spec:
+    podSelector:
+      matchLabels:
+        app: web-app
+    policyTypes:
+      - Ingress
+    ingress: []
+  EOF_POLICY
+  cat <<EOF_POLICY | kubectl apply -f -
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: allow-frontend
+    namespace: production
+  spec:
+    podSelector:
+      matchLabels:
+        app: web-app
+    policyTypes:
+      - Ingress
+    ingress:
+      - from:
+          - podSelector:
+              matchLabels:
+                role: frontend
+  EOF_POLICY

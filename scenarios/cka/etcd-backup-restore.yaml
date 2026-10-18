@@ -1,0 +1,30 @@
+name: "etcd-backup-restore"
+exam: cka
+weight: 8
+difficulty: hard
+duration: 12
+domains:
+  - "Cluster Architecture, Installation & Configuration"
+description: |
+  Create an etcd snapshot at `/var/lib/etcd-snapshot.db` from the control-plane node.
+  Then restore that snapshot into `/var/lib/etcd-restore`.
+context: |
+  Cluster: kind-cka-exam
+  Node: control-plane
+setup: |
+  kubectl get nodes >/dev/null
+hints:
+  - "Use `etcdctl` with the control-plane certificates under `/etc/kubernetes/pki/etcd`."
+  - "For restore, specify a new `--data-dir`."
+  - "Run the command inside the control-plane container if needed."
+validation: |
+  set -euo pipefail
+  echo "Checking snapshot file..."
+  docker exec ${KIND_CLUSTER_NAME}-control-plane test -f /var/lib/etcd-snapshot.db
+  echo "PASS: snapshot file exists"
+  echo "Checking restored data directory..."
+  docker exec ${KIND_CLUSTER_NAME}-control-plane test -d /var/lib/etcd-restore/member
+  echo "PASS: restore directory exists"
+solution: |
+  docker exec ${KIND_CLUSTER_NAME}-control-plane sh -c 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /var/lib/etcd-snapshot.db'
+  docker exec ${KIND_CLUSTER_NAME}-control-plane sh -c 'ETCDCTL_API=3 etcdctl snapshot restore /var/lib/etcd-snapshot.db --data-dir /var/lib/etcd-restore'

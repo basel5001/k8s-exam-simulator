@@ -1,0 +1,45 @@
+name: "seccomp-profile"
+exam: cks
+weight: 6
+difficulty: medium
+duration: 8
+domains:
+  - "Minimize Microservice Vulnerabilities"
+description: |
+  A pod named `api` runs in the `hardening` namespace.
+  Recreate it so all containers use the `RuntimeDefault` seccomp profile.
+context: |
+  Cluster: kind-cks-exam
+  Namespace: hardening
+setup: |
+  kubectl create namespace hardening --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete pod api -n hardening --ignore-not-found
+  kubectl run api --image=nginx --namespace=hardening --labels=app=api --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+  kubectl wait --for=condition=Ready pod/api -n hardening --timeout=120s
+hints:
+  - "Use `securityContext.seccompProfile.type`."
+  - "Pods created with `kubectl run` can be exported to YAML and reapplied."
+  - "The required value is `RuntimeDefault`."
+validation: |
+  set -euo pipefail
+  echo "Checking seccomp profile on pod/api..."
+  kubectl get pod api -n hardening -o json | jq -e '.spec.securityContext.seccompProfile.type == "RuntimeDefault" or .spec.containers[]?.securityContext.seccompProfile.type == "RuntimeDefault"' >/dev/null
+  echo "PASS: RuntimeDefault seccomp profile applied"
+solution: |
+  kubectl delete pod api -n hardening
+  cat <<EOF_POD | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: api
+    namespace: hardening
+    labels:
+      app: api
+  spec:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: api
+        image: nginx
+  EOF_POD

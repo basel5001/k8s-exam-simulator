@@ -1,0 +1,38 @@
+name: "cluster-troubleshoot"
+exam: cka
+weight: 8
+difficulty: hard
+duration: 12
+domains:
+  - "Troubleshooting"
+description: |
+  A static pod manifest on the control-plane node is malformed and fails to start.
+  Fix the manifest so the pod `manifests-nginx` runs successfully in the `kube-system` namespace.
+context: |
+  Cluster: kind-cka-exam
+  Node: control-plane
+setup: |
+  docker exec ${KIND_CLUSTER_NAME}-control-plane sh -c 'cat > /etc/kubernetes/manifests/manifests-nginx.yaml' <<'EOF_POD'
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: manifests-nginx
+    namespace: kube-system
+  spec:
+    containers:
+      - name: nginx
+        image: nginx:broken
+        ports:
+          - containerPort: 80
+  EOF_POD
+hints:
+  - "Static pod manifests live under `/etc/kubernetes/manifests`."
+  - "Use `crictl`, `docker logs`, or `kubectl get pods -n kube-system` to inspect failures."
+  - "The image reference should point to a valid nginx image."
+validation: |
+  set -euo pipefail
+  echo "Checking static pod status..."
+  kubectl get pod manifests-nginx-${KIND_CLUSTER_NAME}-control-plane -n kube-system -o json | jq -e '.status.containerStatuses[0].ready == true' >/dev/null
+  echo "PASS: static pod is healthy"
+solution: |
+  docker exec ${KIND_CLUSTER_NAME}-control-plane sed -i 's/nginx:broken/nginx:1.27/' /etc/kubernetes/manifests/manifests-nginx.yaml

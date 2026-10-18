@@ -1,0 +1,31 @@
+name: "pod-security-standards"
+exam: cks
+weight: 6
+difficulty: medium
+duration: 8
+domains:
+  - "Cluster Hardening"
+description: |
+  Enforce the Kubernetes restricted Pod Security Standard for the `payments` namespace.
+  Ensure workloads in that namespace are rejected unless they satisfy the restricted profile.
+context: |
+  Cluster: kind-cks-exam
+  Namespace: payments
+setup: |
+  kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f -
+  kubectl label namespace payments pod-security.kubernetes.io/enforce- --ignore-not-found
+  kubectl label namespace payments pod-security.kubernetes.io/audit- --ignore-not-found
+  kubectl label namespace payments pod-security.kubernetes.io/warn- --ignore-not-found
+hints:
+  - "Use namespace labels for Pod Security Admission."
+  - "The `restricted` profile should be applied to enforce, audit, and warn."
+  - "Pin the version label to `latest` for this exercise."
+validation: |
+  set -euo pipefail
+  echo "Checking Pod Security labels on payments namespace..."
+  kubectl get ns payments -o json | jq -e '.metadata.labels["pod-security.kubernetes.io/enforce"] == "restricted"' >/dev/null
+  kubectl get ns payments -o json | jq -e '.metadata.labels["pod-security.kubernetes.io/audit"] == "restricted"' >/dev/null
+  kubectl get ns payments -o json | jq -e '.metadata.labels["pod-security.kubernetes.io/warn"] == "restricted"' >/dev/null
+  echo "PASS: namespace uses restricted policy labels"
+solution: |
+  kubectl label namespace payments     pod-security.kubernetes.io/enforce=restricted     pod-security.kubernetes.io/enforce-version=latest     pod-security.kubernetes.io/audit=restricted     pod-security.kubernetes.io/audit-version=latest     pod-security.kubernetes.io/warn=restricted     pod-security.kubernetes.io/warn-version=latest     --overwrite

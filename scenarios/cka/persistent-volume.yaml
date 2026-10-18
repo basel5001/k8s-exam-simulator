@@ -1,0 +1,74 @@
+name: "persistent-volume"
+exam: cka
+weight: 7
+difficulty: medium
+duration: 10
+domains:
+  - "Storage"
+description: |
+  Create a PersistentVolume named `app-pv`, a PersistentVolumeClaim named `app-pvc`,
+  and a pod named `storage-app` in namespace `storage` that mounts the claim at `/data`.
+context: |
+  Cluster: kind-cka-exam
+  Namespace: storage
+setup: |
+  kubectl create namespace storage --dry-run=client -o yaml | kubectl apply -f -
+  docker exec ${KIND_CLUSTER_NAME}-worker mkdir -p /var/local-path/app-data
+  kubectl delete pod storage-app -n storage --ignore-not-found
+  kubectl delete pvc app-pvc -n storage --ignore-not-found
+  kubectl delete pv app-pv --ignore-not-found
+hints:
+  - "A hostPath PV is acceptable in kind."
+  - "Use matching storageClassName values on the PV and PVC."
+  - "Mount the claim with a `volumeMounts` entry in the pod."
+validation: |
+  set -euo pipefail
+  echo "Checking PV bound state..."
+  kubectl get pv app-pv -o json | jq -e '.status.phase == "Bound"' >/dev/null
+  echo "PASS: PV is bound"
+  echo "Checking pod mount..."
+  kubectl get pod storage-app -n storage -o json | jq -e '.spec.volumes[] | select(.persistentVolumeClaim.claimName == "app-pvc")' >/dev/null
+  echo "PASS: pod uses the PVC"
+solution: |
+  cat <<EOF_YAML | kubectl apply -f -
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: app-pv
+  spec:
+    capacity:
+      storage: 1Gi
+    accessModes: ["ReadWriteOnce"]
+    storageClassName: manual
+    hostPath:
+      path: /var/local-path/app-data
+  ---
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: app-pvc
+    namespace: storage
+  spec:
+    accessModes: ["ReadWriteOnce"]
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: manual
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: storage-app
+    namespace: storage
+  spec:
+    containers:
+      - name: app
+        image: nginx
+        volumeMounts:
+          - name: data
+            mountPath: /data
+    volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: app-pvc
+  EOF_YAML

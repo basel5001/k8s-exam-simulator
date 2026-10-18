@@ -1,0 +1,11 @@
+# build artifacts
+/k8s-exam
+/k8s-exam-simulator
+
+# session state written at runtime
+/.k8s-exam-state/
+
+# local kubeconfigs and scratch files
+*.kubeconfig
+*.local
+.DS_Store

@@ -1,0 +1,29 @@
+name: "rolling-update"
+exam: ckad
+weight: 7
+difficulty: medium
+duration: 10
+domains:
+  - "Application Deployment"
+description: |
+  Update the `checkout` deployment in namespace `apps` from nginx:1.25 to nginx:1.27 using a rolling update.
+  If the new version is unavailable, roll back to the previous working revision.
+context: |
+  Cluster: kind-ckad-exam
+  Namespace: apps
+setup: |
+  kubectl create namespace apps --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create deployment checkout -n apps --image=nginx:1.25 --replicas=3 --dry-run=client -o yaml | kubectl apply -f -
+  kubectl rollout status deployment/checkout -n apps --timeout=120s
+hints:
+  - "Use `kubectl set image` to trigger the rollout."
+  - "Monitor progress with `kubectl rollout status`."
+  - "Rollback is done with `kubectl rollout undo`."
+validation: |
+  set -euo pipefail
+  echo "Checking deployment image..."
+  kubectl get deployment checkout -n apps -o json | jq -e '.spec.template.spec.containers[] | .image == "nginx:1.27"' >/dev/null
+  echo "PASS: deployment updated to nginx:1.27"
+solution: |
+  kubectl set image deployment/checkout nginx=nginx:1.27 -n apps
+  kubectl rollout status deployment/checkout -n apps --timeout=120s
