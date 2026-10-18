@@ -1,5 +1,8 @@
 # k8s-exam-simulator
 
+[![ci](https://github.com/basel5001/k8s-exam-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/basel5001/k8s-exam-simulator/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Original Kubernetes practice exam simulator for CKS, CKA, and CKAD using local kind clusters.
 
 ## Features
@@ -13,7 +16,7 @@ Original Kubernetes practice exam simulator for CKS, CKA, and CKAD using local k
 
 ## Prerequisites
 
-- Go 1.23+
+- Go 1.23.12+
 - Docker
 - kind
 - kubectl
@@ -175,3 +178,22 @@ display text only, so a literal cluster name is fine there.
 2. Keep setup scripts idempotent.
 3. Address nodes as `${KIND_CLUSTER_NAME}-control-plane`, never a literal name.
 4. Ensure `go build ./...` and `go test ./...` succeed before opening a PR.
+
+CI runs on every pull request to `main` and must pass before merge:
+
+| Job | What it runs |
+| --- | --- |
+| build and test | `gofmt`, `go mod tidy` diff check, `go vet`, `go build`, `go test -race` |
+| staticcheck | `staticcheck ./...` |
+| govulncheck | `govulncheck ./...` against the latest stable Go |
+
+To reproduce the lint and vuln jobs locally:
+
+```bash
+go install honnef.co/go/tools/cmd/staticcheck@2026.2.2
+go install golang.org/x/vuln/cmd/govulncheck@latest
+staticcheck ./... && govulncheck ./...
+```
+
+Both tools need a newer Go than the module declares, so set `GOTOOLCHAIN=auto`
+if your local Go refuses to install them.
